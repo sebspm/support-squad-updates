@@ -1,0 +1,11 @@
+{
+  "version": "3.0.3",
+  "changelog": "Initial release with SLA warnings, inactivity tracking, and screen shake effects!",
+  "files": [
+    {
+      "path": "game.html",
+      "hash": "sha256-placeholder"
+    }
+  ],
+  "lastUpdated": "2024-12-12T00:00:00Z"
+}

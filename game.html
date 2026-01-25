@@ -1,0 +1,2175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support Squad v3 - Management Warnings Edition</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+        }
+        @keyframes slide-in {
+            from {
+                transform: translateX(-400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .animate-slide-in {
+            animation: slide-in 0.3s ease-out;
+        }
+        @keyframes screen-shake {
+            0%, 100% { transform: translate(0, 0); }
+            10%, 30%, 50%, 70%, 90% { transform: translate(-10px, 0); }
+            20%, 40%, 60%, 80% { transform: translate(10px, 0); }
+        }
+        .screen-shake {
+            animation: screen-shake 0.5s;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        // Simple icon components (replacing lucide-react)
+        const AlertCircle = ({ size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+        );
+
+        const CheckCircle = ({ size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+        );
+
+        const Clock = ({ size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+            </svg>
+        );
+
+        const X = ({ size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+        );
+
+        const Coffee = ({ size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+                <line x1="6" y1="1" x2="6" y2="4" />
+                <line x1="10" y1="1" x2="10" y2="4" />
+                <line x1="14" y1="1" x2="14" y2="4" />
+            </svg>
+        );
+
+        const Zap = ({ size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+        );
+
+        const TrendingUp = ({ size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                <polyline points="17 6 23 6 23 12" />
+            </svg>
+        );
+
+
+// Notification animation styles
+const notificationStyles = `
+  @keyframes slide-in {
+    from {
+      transform: translateX(-400px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  .animate-slide-in {
+    animation: slide-in 0.3s ease-out;
+  }
+  
+  @keyframes screen-shake {
+    0%, 100% { transform: translate(0, 0); }
+    10%, 30%, 50%, 70%, 90% { transform: translate(-10px, 0); }
+    20%, 40%, 60%, 80% { transform: translate(10px, 0); }
+  }
+  
+  .screen-shake {
+    animation: screen-shake 0.5s;
+  }
+`;
+
+const TICKET_TYPES = [
+  { 
+    id: 'bug', 
+    label: 'Bug Report', 
+    color: 'bg-red-100 border-red-300 text-red-800',
+    icon: '🐛',
+    responses: ['Fix deployed', 'Unable to reproduce', 'Known issue - workaround provided'],
+    points: 10,
+    canSpinoff: true,
+    spinoffChance: 0.3
+  },
+  { 
+    id: 'feature', 
+    label: 'Feature Request', 
+    color: 'bg-blue-100 border-blue-300 text-blue-800',
+    icon: '💡',
+    responses: ['Added to roadmap', 'Already available', 'Not planned currently'],
+    points: 8,
+    canSpinoff: false
+  },
+  { 
+    id: 'account', 
+    label: 'Account Issue', 
+    color: 'bg-purple-100 border-purple-300 text-purple-800',
+    icon: '👤',
+    responses: ['Account reset sent', 'Permissions updated', 'Verified and resolved'],
+    points: 12,
+    canSpinoff: true,
+    spinoffChance: 0.2
+  },
+  { 
+    id: 'question', 
+    label: 'General Question', 
+    color: 'bg-green-100 border-green-300 text-green-800',
+    icon: '❓',
+    responses: ['Documentation link sent', 'Explanation provided', 'Video tutorial shared'],
+    points: 5,
+    canSpinoff: false
+  },
+  { 
+    id: 'angry', 
+    label: 'Angry Customer', 
+    color: 'bg-orange-100 border-orange-300 text-orange-800',
+    icon: '😤',
+    responses: ['Sincere apology sent', 'Escalated to manager', 'Compensation offered'],
+    points: 20,
+    canSpinoff: true,
+    spinoffChance: 0.4
+  },
+  {
+    id: 'lab',
+    label: 'Lab Required',
+    color: 'bg-cyan-100 border-cyan-300 text-cyan-800',
+    icon: '🔬',
+    responses: ['Can reproduce', 'Cannot reproduce', 'Need more info'],
+    points: 30,
+    requiresLab: true,
+    canSpinoff: false
+  },
+  {
+    id: 'se_sales',
+    label: 'SE Sales Escalation',
+    color: 'bg-yellow-100 border-yellow-400 text-yellow-900',
+    icon: '💰',
+    responses: ['Demo scheduled', 'POC setup completed', 'Technical concerns addressed', 'Escalated to leadership'],
+    points: 50,
+    isPriority: true,
+    canSpinoff: false,
+    vipTreatment: true,
+    requiresInteractions: true
+  }
+];
+
+const LAB_CONFIGS = {
+  basic: {
+    name: 'Basic Feature Setup',
+    description: 'Enable required features',
+    features: ['SSL-VPN', 'IPsec', 'Web Filter', 'IPS', 'Application Control'],
+    requiredCount: 3,
+    points: 20
+  },
+  medium: {
+    name: 'FortiGate Integration',
+    description: 'Connect FortiGate to other products',
+    connections: [
+      { from: 'FortiGate', to: 'FortiSwitch', enabled: false },
+      { from: 'FortiGate', to: 'FortiAP', enabled: false },
+      { from: 'FortiGate', to: 'FortiAnalyzer', enabled: false },
+      { from: 'FortiGate', to: 'FortiManager', enabled: false }
+    ],
+    requiredCount: 2,
+    points: 30
+  },
+  advanced: {
+    name: 'Network Topology',
+    description: 'Set up ISP connections and VPN',
+    nodes: { isp1: false, isp2: false, vpn: false },
+    cabling: { wan1: false, wan2: false },
+    traffic: false,
+    points: 40
+  }
+};
+
+const CUSTOMER_MESSAGES = {
+  bug: ['App crashes when I click submit', 'Getting error 404', 'Button not working', 'Page is blank'],
+  feature: ['Can you add dark mode?', 'Need export to Excel', 'Want mobile app version', 'Request bulk delete'],
+  account: ['Cannot log in', 'Forgot password', 'Need to change email', 'Account locked'],
+  question: ['How do I...?', 'What does this mean?', 'Where can I find...?', 'Is it possible to...?'],
+  angry: ['This is unacceptable!', 'Terrible service!', 'Want refund NOW!', 'Been waiting for hours!'],
+  se_sales: [
+    'SE needs demo environment ASAP - $2M deal!',
+    'Customer asking technical questions - urgent POC',
+    'Pre-sales escalation from VP - respond NOW',
+    'Sales says deal closing today - need answers',
+    'SE blocked - customer waiting on call',
+    'URGENT: CTO has concerns about our solution'
+  ],
+  lab: {
+    basic: ['Need SSL-VPN enabled', 'IPS not working', 'Web filter setup help', 'How to enable features?'],
+    medium: ['FortiSwitch not connecting', 'FortiAP integration issue', 'FortiAnalyzer logs missing', 'FortiManager sync failed'],
+    advanced: ['IPsec VPN not connecting', 'Routing between AS failing', 'Cannot reach remote site', 'BGP peers down']
+  }
+};
+
+const SE_INTERACTION_TASKS = [
+  // Easy tasks (1-3 steps)
+  { id: 'email', label: 'Reply to SE email thread', icon: '📧', complexity: 'easy', time: 2 },
+  { id: 'status_update', label: 'Send customer status update', icon: '📝', complexity: 'easy', time: 1 },
+  { id: 'quick_call', label: 'Quick sync call with SE', icon: '📞', complexity: 'easy', time: 2 },
+  
+  // Medium tasks (4-7 steps)
+  { id: 'demo', label: 'Schedule demo environment setup', icon: '🖥️', complexity: 'medium', time: 3 },
+  { id: 'pricing', label: 'Get pricing approval from manager', icon: '💵', complexity: 'medium', time: 3 },
+  { id: 'specs', label: 'Review customer technical specs', icon: '📋', complexity: 'medium', time: 2 },
+  { id: 'slides', label: 'Prepare technical slides for customer', icon: '📊', complexity: 'medium', time: 3 },
+  { id: 'documentation', label: 'Compile solution documentation', icon: '📚', complexity: 'medium', time: 2 },
+  
+  // Hard tasks (8-12 steps)
+  { id: 'poc', label: 'Set up proof of concept environment', icon: '🧪', complexity: 'hard', time: 4 },
+  { id: 'architecture', label: 'Design solution architecture diagram', icon: '🏗️', complexity: 'hard', time: 4 },
+  { id: 'security', label: 'Complete security questionnaire', icon: '🔒', complexity: 'hard', time: 3 },
+  { id: 'comparison', label: 'Create competitor comparison sheet', icon: '⚖️', complexity: 'hard', time: 3 },
+  { id: 'costing', label: 'Build detailed cost breakdown', icon: '💰', complexity: 'hard', time: 3 },
+  
+  // Very Hard tasks (13-20 steps)
+  { id: 'rfp', label: 'Respond to RFP questions', icon: '📄', complexity: 'very_hard', time: 4 },
+  { id: 'legal', label: 'Review contract terms with legal', icon: '⚖️', complexity: 'very_hard', time: 3 },
+  { id: 'compliance', label: 'Address compliance concerns', icon: '✅', complexity: 'very_hard', time: 3 },
+  { id: 'integration', label: 'Document integration requirements', icon: '🔗', complexity: 'very_hard', time: 3 },
+  { id: 'benchmark', label: 'Run performance benchmarks', icon: '📈', complexity: 'very_hard', time: 4 },
+  { id: 'executive', label: 'Prepare executive briefing', icon: '👔', complexity: 'very_hard', time: 4 },
+  { id: 'timeline', label: 'Create implementation timeline', icon: '📅', complexity: 'very_hard', time: 2 },
+  { id: 'references', label: 'Coordinate customer references', icon: '👥', complexity: 'very_hard', time: 3 }
+];
+
+const TASK_COMPLEXITY_RANGES = {
+  easy: { min: 1, max: 3, label: 'Quick Task' },
+  medium: { min: 4, max: 7, label: 'Standard Task' },
+  hard: { min: 8, max: 12, label: 'Complex Task' },
+  very_hard: { min: 13, max: 20, label: 'Major Project' }
+};
+
+const EXTRA_WORK_OPTIONS = [
+  { id: 'research', label: '🔍 Deep dive research', reduces: 3 },
+  { id: 'call', label: '📞 Quick sync call', reduces: 2 },
+  { id: 'automation', label: '🤖 Use automation tools', reduces: 2 },
+  { id: 'template', label: '📋 Use existing templates', reduces: 1 }
+];
+
+const CUSTOMER_FEEDBACK = {
+  5: [
+    "Amazing support! You're a lifesaver! 🌟",
+    "Super fast response, fixed my issue immediately!",
+    "Best tech support I've ever had! Thank you!",
+    "You went above and beyond! Highly recommend!",
+    "Perfect service, exactly what I needed!"
+  ],
+  4: [
+    "Good service, issue resolved. Thanks!",
+    "Helpful and professional. Appreciated!",
+    "Took a bit but got it done. Thank you.",
+    "Satisfied with the outcome."
+  ],
+  3: [
+    "It's fixed but took longer than expected.",
+    "Average experience. Could be better.",
+    "Resolved eventually. Not impressed.",
+    "Okay I guess. Nothing special."
+  ],
+  2: [
+    "Took forever and still not sure it's fixed right.",
+    "Not happy with how this was handled.",
+    "Frustrating experience. Wasted my time.",
+    "Poor communication. Had to follow up multiple times."
+  ],
+  1: [
+    "WORST SUPPORT EVER! You didn't even try to help!",
+    "Completely useless! Total waste of my time!",
+    "I demanded a specific fix and you ignored me! UNACCEPTABLE!",
+    "This is why I'm switching to your competitor! Terrible!",
+    "You clearly don't care about customers. DISGRACEFUL!"
+  ]
+};
+
+const EE_QUESTIONS = [
+  { id: 1, question: "What was the root cause analysis for this SE escalation?", answers: ["Network misconfiguration", "Software bug", "User error", "Hardware failure"], correct: 0 },
+  { id: 2, question: "Which log file should we check for this VPN issue?", answers: ["/var/log/ipsec", "/var/log/system", "/var/log/gui", "/var/log/traffic"], correct: 0 },
+  { id: 3, question: "What's the customer's primary business impact?", answers: ["Revenue loss", "Productivity loss", "Security risk", "Compliance issue"], correct: 0 },
+  { id: 4, question: "Did you document the troubleshooting steps?", answers: ["Yes, fully documented", "Partially documented", "Not yet", "Not necessary"], correct: 0 },
+  { id: 5, question: "What's the recommended next step?", answers: ["Escalate to R&D", "Schedule follow-up", "Close as resolved", "Request more info"], correct: 1 },
+  { id: 6, question: "Has the customer confirmed the fix works?", answers: ["Yes, confirmed", "Waiting confirmation", "Unable to test", "Assumed working"], correct: 0 },
+  { id: 7, question: "What firmware version is the customer running?", answers: ["7.4.1", "7.2.5", "7.0.12", "6.4.14"], correct: 0 }
+];
+
+const MANAGEMENT_TASKS = [
+  { id: 1, task: "Update your team status to 'Available' immediately", type: "quick" },
+  { id: 2, task: "Explain why your average response time is above target", type: "explain", requiresText: true },
+  { id: 3, task: "Confirm you've completed mandatory training module", type: "confirm" },
+  { id: 4, task: "Why do you have so many open tickets?", type: "explain", requiresText: true },
+  { id: 5, task: "Submit your weekly report NOW", type: "quick" },
+  { id: 6, task: "Join the emergency all-hands meeting", type: "interrupt" },
+  { id: 7, task: "Clarify the SLA breach on ticket #" + Math.floor(Math.random() * 10000), type: "explain", requiresText: true }
+];
+
+const TEAM_LEAD_CHALLENGES = [
+  { id: 'callback', name: "Urgent Callback", description: "Customer needs callback in 5 minutes", penalty: "Pauses ticket work for 8 seconds", duration: 8 },
+  { id: 'blind_transfer', name: "Blind Transfer", description: "Taking transferred call from colleague", penalty: "Random new ticket added immediately", effect: "add_ticket" },
+  { id: 'meeting', name: "Team Meeting", description: "Mandatory team sync", penalty: "All tickets pause for 10 seconds", duration: 10 },
+  { id: 'training', name: "On-the-spot Training", description: "Shadow new hire while working", penalty: "Slower task completion (50%)", duration: 15 },
+  { id: 'coverage', name: "Cover Another Queue", description: "Help overwhelmed teammate", penalty: "2 random tickets added", effect: "add_tickets" }
+];
+
+const ENERGY_BOOSTS = {
+  coffee: { 
+    name: '☕ Coffee', 
+    multiplier: 3, 
+    duration: 15, 
+    description: 'Slows timers to 33% speed for 15 seconds',
+    color: 'bg-amber-700'
+  },
+  candy: { 
+    name: '🍬 Candy', 
+    multiplier: 5, 
+    duration: 12, 
+    description: 'Slows timers to 20% speed for 12 seconds',
+    color: 'bg-pink-500'
+  },
+  redbull: { 
+    name: '🔴 Red Bull', 
+    multiplier: 10, 
+    duration: 10, 
+    description: 'EXTREME: Slows timers to 10% speed for 10 seconds',
+    color: 'bg-red-600'
+  }
+};
+
+const INCOMING_CALL_SCENARIOS = [
+  { id: 1, issue: "Login not working", complexity: 'easy', closeChance: 0.7 },
+  { id: 2, issue: "VPN connection dropping", complexity: 'medium', closeChance: 0.5 },
+  { id: 3, issue: "Email not syncing", complexity: 'easy', closeChance: 0.8 },
+  { id: 4, issue: "Complex firewall rules", complexity: 'hard', closeChance: 0.3 },
+  { id: 5, issue: "Performance issues", complexity: 'medium', closeChance: 0.5 },
+  { id: 6, issue: "Software won't install", complexity: 'easy', closeChance: 0.7 },
+  { id: 7, issue: "Network routing problem", complexity: 'hard', closeChance: 0.3 },
+  { id: 8, issue: "Password reset", complexity: 'easy', closeChance: 0.9 }
+];
+
+const MANAGER_ATTACK_TASKS = [
+  "Complete compliance training module NOW",
+  "Update your timesheet immediately",
+  "Explain the SLA breach on your last ticket",
+  "Why aren't you in 'Available' status?",
+  "Submit your weekly report ASAP",
+  "Join the emergency team meeting",
+  "Respond to my urgent email from 2 hours ago"
+];
+
+const TICKET_TOPICS = [
+  { id: 'networking', label: '🌐 Networking', complexity: 'hard', description: 'VPN, firewall, routing issues' },
+  { id: 'password_reset', label: '🔑 Password Reset', complexity: 'easy', description: 'Quick password resets' },
+  { id: 'software', label: '💻 Software Issues', complexity: 'medium', description: 'App crashes, bugs' },
+  { id: 'hardware', label: '🖥️ Hardware', complexity: 'medium', description: 'Device problems' },
+  { id: 'email', label: '📧 Email', complexity: 'easy', description: 'Email sync, access issues' },
+  { id: 'security', label: '🔒 Security', complexity: 'hard', description: 'Security incidents, compliance' },
+  { id: 'account_access', label: '👤 Account Access', complexity: 'medium', description: 'Permissions, access issues' },
+  { id: 'performance', label: '⚡ Performance', complexity: 'hard', description: 'Slow systems, optimization' }
+];
+
+const KB_DOCS = [
+  'VPN Troubleshooting Guide',
+  'BGP Configuration Best Practices',
+  'IPsec Phase 1/2 Setup',
+  'Common Routing Issues',
+  'AS Path Configuration',
+  'Network Topology Guide',
+  'Interface Configuration Steps',
+  'Traffic Flow Analysis'
+];
+
+const TicketGame = () => {
+  // Inject notification styles
+  useEffect(() => {
+    const styleTag = document.createElement('style');
+    styleTag.innerHTML = notificationStyles;
+    document.head.appendChild(styleTag);
+    return () => document.head.removeChild(styleTag);
+  }, []);
+
+  const [tickets, setTickets] = useState([]);
+  const [score, setScore] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [gameOver, setGameOver] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [combo, setCombo] = useState(0);
+  const [ticketIdCounter, setTicketIdCounter] = useState(0);
+  const [powerups, setPowerups] = useState({ coffee: 2, autoResolve: 1, slowTime: 1 });
+  const [coffeeBreakActive, setCoffeeBreakActive] = useState(false);
+  const [slowTimeActive, setSlowTimeActive] = useState(false);
+  const [labSetup, setLabSetup] = useState(null);
+  const [kbDocs, setKbDocs] = useState(Infinity);
+  const [kbsUsed, setKbsUsed] = useState(0);
+  const [availableKbDocs] = useState(KB_DOCS);
+  const [escalatedTickets, setEscalatedTickets] = useState(0);
+  const [extraWorkUsed, setExtraWorkUsed] = useState(0);
+  const [expiredTickets, setExpiredTickets] = useState(0);
+  const [customerRatings, setCustomerRatings] = useState([]);
+  const [averageRating, setAverageRating] = useState(5.0);
+  const [managementChasing, setManagementChasing] = useState(false);
+  const [eeQuestions, setEeQuestions] = useState([]);
+  const [managementTasks, setManagementTasks] = useState([]);
+  const [teamLeadChallenges, setTeamLeadChallenges] = useState([]);
+  const [showEeModal, setShowEeModal] = useState(false);
+  const [showManagementModal, setShowManagementModal] = useState(false);
+  const [seExpiredCount, setSeExpiredCount] = useState(0);
+  const [energyBoosts, setEnergyBoosts] = useState({ coffee: 2, candy: 1, redbull: 1 });
+  const [activeBoost, setActiveBoost] = useState(null);
+  const [boostTimeLeft, setBoostTimeLeft] = useState(0);
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [callbackQueue, setCallbackQueue] = useState([]);
+  const [managerAttackActive, setManagerAttackActive] = useState(false);
+  const [currentManagerAttack, setCurrentManagerAttack] = useState(null);
+  const [rockstarStatus, setRockstarStatus] = useState(false);
+  const [managementWarnings, setManagementWarnings] = useState([]);
+  const [screenShake, setScreenShake] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [gameDayTime, setGameDayTime] = useState(0); // seconds elapsed in game day
+  const [gameDayNumber, setGameDayNumber] = useState(1);
+  const [ticketsSelectedToday, setTicketsSelectedToday] = useState(0);
+  const [ticketsClosedToday, setTicketsClosedToday] = useState(0);
+  const [dailyQuotaMet, setDailyQuotaMet] = useState(false);
+  const [showTopicSelector, setShowTopicSelector] = useState(false);
+  const [availableTopics, setAvailableTopics] = useState(TICKET_TOPICS);
+  
+  // Statistics tracking
+  const [userStats, setUserStats] = useState({
+    totalTicketsClosed: 0,
+    totalTicketsSelected: 0,
+    totalGameDays: 0,
+    weeklyStats: [],
+    monthlyStats: [],
+    bestStreak: 0,
+    currentStreak: 0,
+    averageClosureTime: 0,
+    totalPlayTime: 0
+  });
+
+  const GAME_DAY_DURATION = 600; // 10 minutes = 1 game day (more realistic)
+  const DAILY_SELECT_QUOTA = 2; // Must select 2 tickets
+  const DAILY_CLOSE_QUOTA = 2; // Must close 2 tickets
+
+  const maxTickets = 100;
+  const maxExpiredBeforeManagement = 10;
+  const spawnRate = Math.max(8000 - (level * 400), 3000); // 8s → 3s minimum
+
+  const generateTicket = useCallback((isSpinoff = false, parentType = null) => {
+    let type;
+    if (isSpinoff && parentType) {
+      // Spinoffs become related tickets
+      type = parentType;
+    } else {
+      // SE Sales tickets spawn more frequently at higher levels
+      const seProbability = Math.min(0.15 + (level * 0.05), 0.4); // 15% base, up to 40% at high levels
+      
+      if (Math.random() < seProbability) {
+        type = TICKET_TYPES.find(t => t.id === 'se_sales');
+      } else {
+        const nonSeTypes = TICKET_TYPES.filter(t => t.id !== 'se_sales');
+        type = nonSeTypes[Math.floor(Math.random() * nonSeTypes.length)];
+      }
+    }
+    
+    // SE Sales tickets are ALWAYS high urgency, but given unfair extra time
+    const urgency = type.id === 'se_sales' ? 'high' : 
+                    (Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low');
+    
+    // SE Sales tickets get MUCH longer timers despite being "high priority"
+    // Adjusted for realistic ticket handling time
+    const baseTime = type.id === 'se_sales' ? 150 : // 2.5 minutes for SE
+                     type.requiresLab ? 120 : // 2 minutes for lab tickets
+                     (urgency === 'high' ? 60 : urgency === 'medium' ? 90 : 120); // 1-2 minutes for regular
+    
+    const ticket = {
+      id: Date.now() + Math.random(),
+      type: type,
+      timeLeft: baseTime,
+      maxTime: baseTime,
+      urgency: urgency,
+      priority: urgency === 'high' ? 'P1' : urgency === 'medium' ? 'P2' : 'P3',
+      inactivityTime: 0, // Track time without activity
+      lastActivity: Date.now(),
+      slaWarningShown: false,
+      inactivityWarningShown: false,
+      isSpinoff: isSpinoff,
+      hasSpawnedSpinoff: false,
+      labComplete: false,
+      // Customer personality (affects rating behavior)
+      customerPersonality: Math.random() < 0.2 ? 'mean' : Math.random() < 0.5 ? 'demanding' : 'normal',
+      expectedRating: 5, // Can change based on service quality
+      hasSpecificDemand: Math.random() < 0.3, // 30% chance of having specific demands
+      specificDemand: null
+    };
+
+    // Mean customers have specific demands that must be met
+    if (ticket.customerPersonality === 'mean' && ticket.hasSpecificDemand) {
+      const demands = [
+        "I want a FULL refund!",
+        "Transfer me to your manager NOW!",
+        "Fix this in the next 5 minutes or I'm canceling!",
+        "This better be escalated to engineering!",
+        "I demand compensation for this!"
+      ];
+      ticket.specificDemand = demands[Math.floor(Math.random() * demands.length)];
+      ticket.message += " " + ticket.specificDemand;
+    }
+
+    // Initialize SE Sales interactions (complexity-based task counts)
+    if (type.requiresInteractions) {
+      // Determine complexity based on level and randomness
+      let complexity;
+      const rand = Math.random();
+      if (level < 3 || rand < 0.25) {
+        complexity = 'easy'; // 1-3 tasks
+      } else if (level < 5 || rand < 0.50) {
+        complexity = 'medium'; // 4-7 tasks
+      } else if (level < 8 || rand < 0.75) {
+        complexity = 'hard'; // 8-12 tasks
+      } else {
+        complexity = 'very_hard'; // 13-20 tasks
+      }
+      
+      const range = TASK_COMPLEXITY_RANGES[complexity];
+      const taskCount = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+      
+      // Select tasks matching complexity
+      const availableTasks = SE_INTERACTION_TASKS.filter(t => t.complexity === complexity);
+      const selectedTasks = [];
+      
+      for (let i = 0; i < taskCount; i++) {
+        const task = availableTasks[Math.floor(Math.random() * availableTasks.length)];
+        selectedTasks.push({ ...task, completed: false, index: i });
+      }
+      
+      ticket.interactions = {
+        required: true,
+        tasks: selectedTasks,
+        currentStep: 0,
+        totalSteps: taskCount,
+        complexity: complexity,
+        complexityLabel: range.label,
+        escalationLevel: 0,
+        canUseExtraWork: true
+      };
+      ticket.isTedious = true;
+      ticket.escalationLevel = 0;
+      ticket.seComplexity = complexity;
+      
+      const messages = CUSTOMER_MESSAGES.se_sales;
+      ticket.message = messages[Math.floor(Math.random() * messages.length)];
+    }
+    // Initialize lab setup for lab tickets
+    else if (type.requiresLab) {
+      const labTypes = ['basic', 'medium', 'advanced'];
+      const labType = labTypes[Math.floor(Math.random() * labTypes.length)];
+      ticket.labType = labType;
+      
+      const messages = CUSTOMER_MESSAGES.lab[labType];
+      ticket.message = messages[Math.floor(Math.random() * messages.length)];
+
+      if (labType === 'basic') {
+        ticket.labSetup = {
+          type: 'basic',
+          features: LAB_CONFIGS.basic.features.reduce((acc, feat) => ({ ...acc, [feat]: false }), {}),
+          requiredCount: LAB_CONFIGS.basic.requiredCount
+        };
+      } else if (labType === 'medium') {
+        ticket.labSetup = {
+          type: 'medium',
+          connections: LAB_CONFIGS.medium.connections.map(c => ({ ...c })),
+          requiredCount: LAB_CONFIGS.medium.requiredCount
+        };
+      } else {
+        ticket.labSetup = {
+          type: 'advanced',
+          nodes: { ...LAB_CONFIGS.advanced.nodes },
+          cabling: { ...LAB_CONFIGS.advanced.cabling },
+          traffic: false
+        };
+      }
+    } else {
+      const messages = CUSTOMER_MESSAGES[type.id];
+      ticket.message = messages[Math.floor(Math.random() * messages.length)];
+    }
+
+    return ticket;
+  }, [level]);
+
+  useEffect(() => {
+    if (!gameStarted || gameOver || coffeeBreakActive) return;
+
+    const spawnInterval = setInterval(() => {
+      setTickets(prev => {
+        if (prev.length < maxTickets) {
+          return [...prev, generateTicket()];
+        }
+        return prev;
+      });
+    }, spawnRate);
+
+    return () => clearInterval(spawnInterval);
+  }, [gameStarted, gameOver, level, spawnRate, generateTicket, coffeeBreakActive]);
+
+  useEffect(() => {
+    if (!gameStarted || gameOver || coffeeBreakActive) return;
+
+    // Calculate timer multiplier based on active boosts
+    let tickMultiplier = slowTimeActive ? 0.5 : 1;
+    if (activeBoost) {
+      const boost = ENERGY_BOOSTS[activeBoost];
+      tickMultiplier = tickMultiplier / boost.multiplier; // Divide to slow down
+    }
+
+    const timerInterval = setInterval(() => {
+      setTickets(prev => {
+        const updated = prev.map(ticket => {
+          const newTicket = {
+            ...ticket,
+            timeLeft: ticket.timeLeft - (0.1 * tickMultiplier)
+          };
+
+          // Check if ticket should spawn a spinoff (at 50% time remaining)
+          if (ticket.type.canSpinoff && 
+              !ticket.hasSpawnedSpinoff && 
+              newTicket.timeLeft <= ticket.maxTime * 0.5 &&
+              Math.random() < ticket.type.spinoffChance) {
+            newTicket.hasSpawnedSpinoff = true;
+            // Add spinoff ticket
+            setTimeout(() => {
+              setTickets(t => {
+                if (t.length < maxTickets) {
+                  return [...t, generateTicket(true, ticket.type)];
+                }
+                return t;
+              });
+            }, 500);
+          }
+
+          // ESCALATION MECHANICS: Tickets can escalate when neglected
+          // Tracks escalations: 0 (normal) -> 1 (first escalation) -> 2 (second) -> 3 (becomes SE)
+          if (!ticket.escalationLevel) ticket.escalationLevel = 0;
+          if (!ticket.hasEscalated) ticket.hasEscalated = false;
+
+          // Check for escalation at 30%, 20%, and 10% time remaining
+          const timePercent = (newTicket.timeLeft / ticket.maxTime) * 100;
+          
+          if (timePercent <= 30 && timePercent > 29.9 && ticket.escalationLevel === 0 && Math.random() < 0.3) {
+            // First escalation - customer getting frustrated
+            newTicket.escalationLevel = 1;
+            newTicket.message = "⚠️ ESCALATED: " + ticket.message + " - Customer is frustrated!";
+            newTicket.hasEscalated = true;
+          } else if (timePercent <= 20 && timePercent > 19.9 && ticket.escalationLevel === 1 && Math.random() < 0.4) {
+            // Second escalation - customer is angry
+            newTicket.escalationLevel = 2;
+            newTicket.message = "🔴 ESCALATED x2: " + ticket.message + " - Customer is ANGRY!";
+            newTicket.hasEscalated = true;
+            // Angry customers lose more time
+            newTicket.timeLeft = Math.max(5, newTicket.timeLeft - 3);
+          } else if (timePercent <= 10 && timePercent > 9.9 && ticket.escalationLevel === 2 && Math.random() < 0.5) {
+            // Third escalation - converts to SE Sales ticket!
+            newTicket.escalationLevel = 3;
+            
+            // Convert to SE ticket type
+            const seType = TICKET_TYPES.find(t => t.id === 'se_sales');
+            newTicket.type = seType;
+            newTicket.message = "💰 SE ESCALATION: " + ticket.message + " - VP is involved!";
+            newTicket.timeLeft = newTicket.timeLeft + 30; // Give more time as SE ticket
+            newTicket.maxTime = newTicket.timeLeft;
+            
+            // Add SE interactions (more tasks due to escalation stress)
+            const taskCount = Math.floor(Math.random() * 11) + 10; // 10-20 tasks for escalated SE
+            const selectedTasks = [];
+            for (let i = 0; i < taskCount; i++) {
+              const task = SE_INTERACTION_TASKS[Math.floor(Math.random() * SE_INTERACTION_TASKS.length)];
+              selectedTasks.push({ ...task, completed: false, index: i });
+            }
+            
+            newTicket.interactions = {
+              required: true,
+              tasks: selectedTasks,
+              currentStep: 0,
+              totalSteps: taskCount,
+              escalationLevel: 3,
+              canUseExtraWork: true
+            };
+            newTicket.isTedious = true;
+            
+            setEscalatedTickets(prev => prev + 1);
+          }
+
+          // SLA WARNING SYSTEM: Management warns when SLA hours are low
+          const slaHours = (newTicket.timeLeft / 15).toFixed(1); // 15 seconds = 1 hour
+          const slaHoursNum = parseFloat(slaHours);
+          
+          // Warn at 2 hours remaining for P1/P2, 4 hours for P3
+          const warnThreshold = newTicket.priority === 'P3' ? 4 : 2;
+          
+          if (!newTicket.slaWarningShown && slaHoursNum <= warnThreshold && slaHoursNum > 0) {
+            newTicket.slaWarningShown = true;
+            triggerManagementWarning({
+              type: 'sla',
+              ticket: newTicket,
+              message: `⏰ ${newTicket.priority} ticket "${newTicket.type.label}" has only ${slaHours}h SLA left!`,
+              severity: newTicket.priority === 'P1' ? 'high' : 'medium'
+            });
+          }
+          
+          // INACTIVITY WARNING SYSTEM: Warn if ticket sits too long without activity
+          // P2: 1 day (86400s game time = 144 real seconds)
+          // P3: 2 days (172800s game time = 288 real seconds)
+          const now = Date.now();
+          const inactiveTime = (now - newTicket.lastActivity) / 1000; // seconds
+          const inactivityThreshold = newTicket.priority === 'P2' ? 144 : 288; // Real seconds
+          
+          if (!newTicket.inactivityWarningShown && inactiveTime >= inactivityThreshold) {
+            newTicket.inactivityWarningShown = true;
+            const daysInactive = newTicket.priority === 'P2' ? 1 : 2;
+            triggerManagementWarning({
+              type: 'inactivity',
+              ticket: newTicket,
+              message: `⚠️ ${newTicket.priority} ticket has been sitting for ${daysInactive} day${daysInactive > 1 ? 's' : ''} without activity!`,
+              severity: 'high',
+              shake: true
+            });
+          }
+
+          return newTicket;
+        });
+
+        const expired = updated.filter(t => t.timeLeft <= 0);
+        if (expired.length > 0) {
+          // Notify about expired tickets
+          expired.forEach(ticket => {
+            const notificationId = Date.now() + Math.random();
+            const notification = {
+              id: notificationId,
+              type: 'error',
+              title: `❌ ${ticket.type.label} Expired!`,
+              message: 'SLA breach - ticket not resolved in time',
+              timestamp: Date.now()
+            };
+            
+            setNotifications(prev => [...prev, notification]);
+            
+            setTimeout(() => {
+              setNotifications(prev => prev.filter(n => n.id !== notificationId));
+            }, 5000);
+            
+            // Track SE ticket expirations
+            if (ticket.type.id === 'se_sales') {
+              setSeExpiredCount(prev => {
+                const newCount = prev + 1;
+                // Trigger EE questions at 3 SE expirations
+                if (newCount >= 3 && eeQuestions.length === 0) {
+                  // Transfer to Escalation Engineer - send random questions
+                  const questionCount = Math.floor(Math.random() * 3) + 2; // 2-4 questions
+                  const selectedQuestions = [];
+                  for (let i = 0; i < questionCount; i++) {
+                    const q = EE_QUESTIONS[Math.floor(Math.random() * EE_QUESTIONS.length)];
+                    selectedQuestions.push({ ...q, answered: false });
+                  }
+                  setEeQuestions(selectedQuestions);
+                  setShowEeModal(true);
+                }
+                return newCount;
+              });
+            }
+          });
+          
+          // Track expired tickets for management meeting
+          setExpiredTickets(prev => {
+            const newCount = prev + expired.length;
+            // Trigger management meeting at 10 expired
+            if (newCount >= maxExpiredBeforeManagement && !managementChasing) {
+              setManagementChasing(true);
+              setShowManagementModal(true);
+              // Select random management task
+              const task = MANAGEMENT_TASKS[Math.floor(Math.random() * MANAGEMENT_TASKS.length)];
+              setManagementTasks([task]);
+            }
+            return newCount;
+          });
+          
+          setCombo(0);
+          if (tickets.length >= maxTickets - 1) {
+            setGameOver(true);
+          }
+        }
+
+        return updated.filter(t => t.timeLeft > 0);
+      });
+    }, 100);
+
+    return () => clearInterval(timerInterval);
+  }, [gameStarted, gameOver, coffeeBreakActive, slowTimeActive, tickets.length, generateTicket, activeBoost]);
+
+  // Track Rockstar status (protects from manager attacks)
+  useEffect(() => {
+    setRockstarStatus(averageRating >= 4.2);
+  }, [averageRating]);
+
+  // Random incoming calls
+  useEffect(() => {
+    if (!gameStarted || gameOver) return;
+
+    const callInterval = setInterval(() => {
+      if (Math.random() < 0.15 && !showCallModal) { // 15% chance every interval
+        const call = INCOMING_CALL_SCENARIOS[Math.floor(Math.random() * INCOMING_CALL_SCENARIOS.length)];
+        setIncomingCall({ ...call, attempted: false });
+        setShowCallModal(true);
+      }
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(callInterval);
+  }, [gameStarted, gameOver, showCallModal]);
+
+  // Random Team Lead challenges
+  useEffect(() => {
+    if (!gameStarted || gameOver) return;
+
+    const challengeInterval = setInterval(() => {
+      if (Math.random() < 0.2) { // 20% chance every 30 seconds
+        const challenge = TEAM_LEAD_CHALLENGES[Math.floor(Math.random() * TEAM_LEAD_CHALLENGES.length)];
+        
+        // Show notification about challenge
+        const notificationId = Date.now() + Math.random();
+        setNotifications(prev => [...prev, {
+          id: notificationId,
+          type: 'warning',
+          title: `👔 TL Challenge: ${challenge.name}`,
+          message: challenge.description,
+          timestamp: Date.now()
+        }]);
+        
+        setTimeout(() => {
+          setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        }, 5000);
+        
+        // Apply challenge effect
+        if (challenge.effect === 'add_ticket') {
+          setTickets(prev => [...prev, generateTicket(false, null)]);
+        } else if (challenge.effect === 'add_tickets') {
+          const count = challenge.count || 2;
+          for (let i = 0; i < count; i++) {
+            setTimeout(() => {
+              setTickets(prev => [...prev, generateTicket(false, null)]);
+            }, i * 500);
+          }
+        } else if (challenge.duration) {
+          // Pause tickets for duration
+          setCoffeeBreakActive(true);
+          setTimeout(() => setCoffeeBreakActive(false), challenge.duration * 1000);
+        }
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(challengeInterval);
+  }, [gameStarted, gameOver, generateTicket]);
+
+  const attachKbDoc = (ticket) => {
+    // Randomly use 1-5 KB docs
+    const kbsUsedThisTime = Math.floor(Math.random() * 5) + 1;
+    const selectedDocs = [];
+    for (let i = 0; i < kbsUsedThisTime; i++) {
+      selectedDocs.push(availableKbDocs[Math.floor(Math.random() * availableKbDocs.length)]);
+    }
+
+    setKbsUsed(prev => prev + kbsUsedThisTime);
+    
+    // Calculate closure chance based on number of KBs (20% base + 10% per additional KB)
+    const closureChance = 0.2 + (kbsUsedThisTime - 1) * 0.1;
+    
+    if (Math.random() < closureChance) {
+      // Early closure!
+      const points = ticket.type.points + 15 + (kbsUsedThisTime * 5); // Bonus for KB resolution
+      setScore(prev => prev + points);
+      setTickets(prev => prev.filter(t => t.id !== ticket.id));
+      setSelectedTicket(null);
+      
+      // Show notification
+      alert(`🎉 KB Docs Auto-Closed Ticket!\n\nUsed ${kbsUsedThisTime} KB doc(s):\n${selectedDocs.map((d, i) => `${i + 1}. ${d}`).join('\n')}\n\n+${points} points!`);
+    } else {
+      // Add 10 seconds to timer
+      setTickets(prev => prev.map(t => 
+        t.id === ticket.id 
+          ? { ...t, timeLeft: t.timeLeft + 10, maxTime: t.maxTime + 10 }
+          : t
+      ));
+      
+      // Show notification
+      alert(`📚 KB Docs Attached (${kbsUsedThisTime} doc(s))\n\n${selectedDocs.map((d, i) => `${i + 1}. ${d}`).join('\n')}\n\n+10 seconds added to timer`);
+    }
+  };
+
+  const toggleLabComponent = (ticketId, action, item) => {
+    setTickets(prev => {
+      const updated = prev.map(t => {
+        if (t.id !== ticketId || !t.labSetup) return t;
+
+        const newTicket = { ...t };
+        const setup = { ...t.labSetup };
+
+        if (setup.type === 'basic') {
+          // Toggle feature
+          setup.features = { ...setup.features, [item]: !setup.features[item] };
+          const enabledCount = Object.values(setup.features).filter(Boolean).length;
+          newTicket.labComplete = enabledCount >= setup.requiredCount;
+        } 
+        else if (setup.type === 'medium') {
+          // Toggle connection
+          setup.connections = setup.connections.map((conn, idx) => 
+            idx === item ? { ...conn, enabled: !conn.enabled } : conn
+          );
+          const enabledCount = setup.connections.filter(c => c.enabled).length;
+          newTicket.labComplete = enabledCount >= setup.requiredCount;
+        } 
+        else if (setup.type === 'advanced') {
+          if (action === 'node') {
+            setup.nodes = { ...setup.nodes, [item]: !setup.nodes[item] };
+          } else if (action === 'cable') {
+            setup.cabling = { ...setup.cabling, [item]: !setup.cabling[item] };
+          } else if (action === 'traffic') {
+            setup.traffic = !setup.traffic;
+          }
+          const nodesComplete = Object.values(setup.nodes).every(v => v);
+          const cablingComplete = Object.values(setup.cabling).every(v => v);
+          newTicket.labComplete = nodesComplete && cablingComplete && setup.traffic;
+        }
+
+        newTicket.labSetup = setup;
+        return newTicket;
+      });
+
+      return updated;
+    });
+
+    // Update selected ticket to force re-render of sidebar
+    setSelectedTicket(prev => {
+      if (prev && prev.id === ticketId) {
+        const updated = tickets.find(t => t.id === ticketId);
+        return updated || prev;
+      }
+      return prev;
+    });
+  };
+
+  // Keep selectedTicket in sync with tickets array
+  useEffect(() => {
+    if (selectedTicket) {
+      const updatedTicket = tickets.find(t => t.id === selectedTicket.id);
+      if (updatedTicket && (JSON.stringify(updatedTicket.labSetup) !== JSON.stringify(selectedTicket.labSetup) ||
+          JSON.stringify(updatedTicket.interactions) !== JSON.stringify(selectedTicket.interactions))) {
+        setSelectedTicket(updatedTicket);
+      }
+    }
+  }, [tickets, selectedTicket]);
+
+  const completeSeTask = (ticketId, taskIndex) => {
+    setTickets(prev => {
+      const updated = prev.map(t => {
+        if (t.id !== ticketId || !t.interactions) return t;
+
+        const newTicket = { ...t };
+        const interactions = { ...t.interactions };
+        const tasks = [...interactions.tasks];
+        
+        // Mark task as completed
+        tasks[taskIndex] = { ...tasks[taskIndex], completed: true };
+        interactions.tasks = tasks;
+        interactions.currentStep = tasks.filter(t => t.completed).length;
+        
+        newTicket.interactions = interactions;
+        return newTicket;
+      });
+
+      return updated;
+    });
+  };
+
+  const useExtraWork = (ticketId, workType) => {
+    setTickets(prev => {
+      const updated = prev.map(t => {
+        if (t.id !== ticketId || !t.interactions || !t.interactions.canUseExtraWork) return t;
+
+        const newTicket = { ...t };
+        const interactions = { ...t.interactions };
+        const tasks = [...interactions.tasks];
+        
+        const work = EXTRA_WORK_OPTIONS.find(w => w.id === workType);
+        if (!work) return t;
+        
+        // Remove random incomplete tasks
+        const incompleteTasks = tasks.filter(task => !task.completed);
+        const tasksToRemove = Math.min(work.reduces, incompleteTasks.length);
+        
+        for (let i = 0; i < tasksToRemove; i++) {
+          const randomIncomplete = incompleteTasks[Math.floor(Math.random() * incompleteTasks.length)];
+          const taskIndex = tasks.findIndex(task => task.index === randomIncomplete.index);
+          if (taskIndex !== -1) {
+            tasks.splice(taskIndex, 1);
+            incompleteTasks.splice(incompleteTasks.indexOf(randomIncomplete), 1);
+          }
+        }
+        
+        interactions.tasks = tasks;
+        interactions.totalSteps = tasks.length;
+        interactions.canUseExtraWork = false; // Can only use once per ticket
+        
+        newTicket.interactions = interactions;
+        setExtraWorkUsed(prev => prev + 1);
+        
+        return newTicket;
+      });
+
+      return updated;
+    });
+  };
+
+  const resolveTicket = (ticket, responseIndex) => {
+    // Lab tickets require completion before resolution
+    if (ticket.type.requiresLab && !ticket.labComplete) {
+      return;
+    }
+    
+    // SE Sales tickets with interactions require all tasks completed
+    if (ticket.type.requiresInteractions && ticket.interactions) {
+      const allCompleted = ticket.interactions.tasks.every(t => t.completed);
+      if (!allCompleted) {
+        return;
+      }
+    }
+
+    const points = ticket.type.points;
+    const timeBonus = Math.floor((ticket.timeLeft / ticket.maxTime) * 10);
+    const comboBonus = combo * 2;
+    const labBonus = ticket.type.requiresLab ? 20 : 0;
+    
+    // SE Sales tickets give bonus but break your combo
+    const seBonus = ticket.type.id === 'se_sales' ? 25 : 0;
+    const tediousBonus = ticket.isTedious ? 30 : 0; // Extra points for tedious SE tickets
+    const totalPoints = points + timeBonus + comboBonus + labBonus + seBonus + tediousBonus;
+
+    setScore(prev => prev + totalPoints);
+    
+    // Create resolution notification
+    const notificationId = Date.now();
+    const notification = {
+      id: notificationId,
+      type: 'success',
+      title: `✅ ${ticket.type.label} Resolved!`,
+      points: totalPoints,
+      breakdown: {
+        base: points,
+        timeBonus: timeBonus > 0 ? timeBonus : null,
+        comboBonus: comboBonus > 0 ? comboBonus : null,
+        labBonus: labBonus > 0 ? labBonus : null,
+        seBonus: seBonus > 0 ? seBonus : null,
+        tediousBonus: tediousBonus > 0 ? tediousBonus : null
+      },
+      timestamp: Date.now()
+    };
+    
+    setNotifications(prev => [...prev, notification]);
+    
+    // Auto-remove notification after 5 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    }, 5000);
+    
+    // SE Sales tickets interrupt your flow - reset combo
+    if (ticket.type.id === 'se_sales') {
+      setCombo(0);
+    } else {
+      setCombo(prev => prev + 1);
+    }
+    
+    // Ticket Return Mechanic - Some tickets require additional work
+    const returnChance = ticket.type.id === 'angry' ? 0.4 : // 40% angry customers return
+                         ticket.type.id === 'bug' ? 0.3 : // 30% bugs return
+                         ticket.type.id === 'se_sales' ? 0.25 : // 25% SE returns
+                         ticket.type.requiresLab ? 0.2 : // 20% lab returns
+                         0.15; // 15% others return
+    
+    const ticketReturns = Math.random() < returnChance;
+    
+    if (ticketReturns) {
+      // Ticket comes back with follow-up message
+      const followUpMessages = {
+        angry: [
+          "That didn't fix it! Still broken!",
+          "Now there's a DIFFERENT problem!",
+          "Your solution made it worse!",
+          "I need to escalate this AGAIN!"
+        ],
+        bug: [
+          "Bug is back - still reproducible",
+          "Fixed one thing, broke another",
+          "Works in Chrome but not Firefox",
+          "Only happens on mobile now"
+        ],
+        se_sales: [
+          "Customer has additional questions",
+          "VP wants more details in the proposal",
+          "Need updated pricing for Q2",
+          "Client wants to see competitor comparison"
+        ],
+        lab: [
+          "Lab test failed - need different config",
+          "Customer environment doesn't match",
+          "Additional features needed",
+          "Integration issues found"
+        ],
+        account: [
+          "Different user having same issue",
+          "Permissions still not working correctly",
+          "Need access to additional systems",
+          "Account locked again"
+        ],
+        default: [
+          "Customer has follow-up questions",
+          "Additional issues found",
+          "Need clarification on solution",
+          "Didn't fully resolve the issue"
+        ]
+      };
+      
+      const messageKey = ticket.type.id || 'default';
+      const messages = followUpMessages[messageKey] || followUpMessages.default;
+      const followUpMessage = messages[Math.floor(Math.random() * messages.length)];
+      
+      // Create a follow-up ticket
+      setTimeout(() => {
+        const followUpTicket = {
+          ...ticket,
+          id: Date.now() + Math.random(),
+          message: `🔄 FOLLOW-UP: ${followUpMessage}`,
+          timeLeft: ticket.maxTime * 0.7, // 70% of original time
+          isFollowUp: true,
+          originalTicketId: ticket.id,
+          labComplete: false, // Reset lab if applicable
+          interactions: ticket.interactions ? {
+            ...ticket.interactions,
+            tasks: ticket.interactions.tasks.map(t => ({ ...t, completed: false })),
+            currentStep: 0,
+            totalSteps: Math.ceil(ticket.interactions.totalSteps * 0.5) // Half the tasks
+          } : null
+        };
+        
+        setTickets(prev => [...prev, followUpTicket]);
+        
+        // Notification about return
+        const returnNotifId = Date.now() + Math.random();
+        setNotifications(prev => [...prev, {
+          id: returnNotifId,
+          type: 'warning',
+          title: `🔄 ${ticket.type.label} Returned!`,
+          message: followUpMessage,
+          timestamp: Date.now()
+        }]);
+        
+        setTimeout(() => {
+          setNotifications(prev => prev.filter(n => n.id !== returnNotifId));
+        }, 5000);
+      }, 2000); // Returns after 2 seconds
+    }
+    
+    setTickets(prev => prev.filter(t => t.id !== ticket.id));
+    setSelectedTicket(null);
+    setLabSetup(null);
+
+    if (score + totalPoints > level * 200) {
+      setLevel(prev => prev + 1);
+    }
+  };
+
+  const usePowerup = (type) => {
+    if (powerups[type] <= 0) return;
+
+    setPowerups(prev => ({ ...prev, [type]: prev[type] - 1 }));
+
+    if (type === 'coffee') {
+      setCoffeeBreakActive(true);
+      setTimeout(() => setCoffeeBreakActive(false), 5000);
+    } else if (type === 'autoResolve') {
+      if (tickets.length > 0) {
+        const ticketToResolve = tickets[0];
+        resolveTicket(ticketToResolve, 0);
+      }
+    } else if (type === 'slowTime') {
+      setSlowTimeActive(true);
+      setTimeout(() => setSlowTimeActive(false), 10000);
+    }
+  };
+
+  const useEnergyBoost = (boostType) => {
+    if (energyBoosts[boostType] <= 0 || activeBoost) return;
+    
+    const boost = ENERGY_BOOSTS[boostType];
+    setEnergyBoosts(prev => ({ ...prev, [boostType]: prev[boostType] - 1 }));
+    setActiveBoost(boostType);
+    setBoostTimeLeft(boost.duration);
+    
+    // Countdown timer for boost
+    const countdown = setInterval(() => {
+      setBoostTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(countdown);
+          setActiveBoost(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    // Manager attacks during boost (unless Rockstar)
+    if (!rockstarStatus && Math.random() < 0.4) {
+      setTimeout(() => {
+        triggerManagerAttack();
+      }, Math.random() * boost.duration * 500);
+    }
+  };
+
+  const triggerManagementWarning = (warning) => {
+    // Add to warnings list
+    setManagementWarnings(prev => [...prev, { ...warning, id: Date.now(), timestamp: Date.now() }]);
+    
+    // Create notification
+    const notificationId = Date.now() + Math.random();
+    setNotifications(prev => [...prev, {
+      id: notificationId,
+      type: 'warning',
+      title: '👔 Management Warning',
+      message: warning.message,
+      timestamp: Date.now()
+    }]);
+    
+    // Auto-remove notification after 5 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    }, 5000);
+    
+    // Shake screen if severe
+    if (warning.shake || warning.severity === 'high') {
+      setScreenShake(true);
+      setTimeout(() => setScreenShake(false), 500);
+    }
+  };
+
+  const triggerManagerAttack = () => {
+    if (rockstarStatus) return; // Rockstar status protects you!
+    
+    const task = MANAGER_ATTACK_TASKS[Math.floor(Math.random() * MANAGER_ATTACK_TASKS.length)];
+    setCurrentManagerAttack(task);
+    setManagerAttackActive(true);
+    
+    // Breaks boost if active
+    if (activeBoost) {
+      setActiveBoost(null);
+      setBoostTimeLeft(0);
+    }
+  };
+
+  const dismissManagerAttack = () => {
+    setManagerAttackActive(false);
+    setCurrentManagerAttack(null);
+  };
+
+  const handleIncomingCall = (action, callData) => {
+    if (action === 'callback') {
+      // Promise callback
+      setCallbackQueue(prev => [...prev, callData]);
+      setShowCallModal(false);
+      setIncomingCall(null);
+      // Callback tickets appear in 30 seconds
+      setTimeout(() => {
+        setTickets(prev => [...prev, generateTicket(false, null)]);
+      }, 30000);
+    } else if (action === 'take') {
+      // Try to close on call
+      const success = Math.random() < callData.closeChance;
+      if (success) {
+        // Closed on call! Bonus points
+        setScore(prev => prev + 15);
+        setShowCallModal(false);
+        setIncomingCall(null);
+      } else {
+        // Couldn't close - offer FTS transfer or try again
+        callData.attempted = true;
+        setIncomingCall(callData);
+      }
+    } else if (action === 'transfer') {
+      // Transfer to FTS queue
+      setShowCallModal(false);
+      setIncomingCall(null);
+      // Small point penalty
+      setScore(prev => Math.max(0, prev - 5));
+    } else if (action === 'retry') {
+      // Try again to close
+      const success = Math.random() < callData.closeChance + 0.2; // Better odds on retry
+      if (success) {
+        setScore(prev => prev + 10);
+        setShowCallModal(false);
+        setIncomingCall(null);
+      } else {
+        // Failed again - must transfer or becomes ticket
+        setTickets(prev => [...prev, generateTicket(false, null)]);
+        setShowCallModal(false);
+        setIncomingCall(null);
+      }
+    }
+  };
+
+  const convertToSlaTime = (seconds) => {
+    // Convert game seconds to SLA hours
+    // 120 seconds = 8 hour SLA (1 second = 4 minutes in real time)
+    const slaHours = (seconds / 15).toFixed(1); // 15 seconds = 1 SLA hour
+    return `${slaHours}h`;
+  };
+
+  const startGame = () => {
+    setGameStarted(true);
+    setGameOver(false);
+    setScore(0);
+    setLevel(1);
+    setTickets([]);
+    setCombo(0);
+    setPowerups({ coffee: 2, autoResolve: 1, slowTime: 1 });
+    setKbsUsed(0);
+    setLabSetup(null);
+    setEscalatedTickets(0);
+    setExtraWorkUsed(0);
+    setExpiredTickets(0);
+    setCustomerRatings([]);
+    setAverageRating(5.0);
+    setManagementChasing(false);
+    setEeQuestions([]);
+    setManagementTasks([]);
+    setTeamLeadChallenges([]);
+    setSeExpiredCount(0);
+    setEnergyBoosts({ coffee: 2, candy: 1, redbull: 1 });
+    setActiveBoost(null);
+    setBoostTimeLeft(0);
+    setIncomingCall(null);
+    setShowCallModal(false);
+    setCallbackQueue([]);
+    setManagerAttackActive(false);
+    setCurrentManagerAttack(null);
+    setRockstarStatus(false);
+  };
+
+  const getUrgencyColor = (urgency) => {
+    if (urgency === 'high') return 'border-red-500 border-2';
+    if (urgency === 'medium') return 'border-yellow-500 border-2';
+    return 'border-gray-300 border';
+  };
+
+  if (!gameStarted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl text-center">
+          <h1 className="text-5xl font-bold text-indigo-600 mb-4">🎫 Support Squad</h1>
+          <p className="text-xl text-gray-700 mb-6">Manage incoming tickets before you get overwhelmed!</p>
+          
+          <div className="bg-indigo-50 rounded-lg p-6 mb-6 text-left">
+            <h2 className="text-2xl font-semibold mb-4 text-indigo-800">How to Play:</h2>
+            <ul className="space-y-2 text-gray-700">
+              <li className="flex items-start">
+                <span className="text-indigo-600 mr-2">•</span>
+                Click tickets to select them, then choose a response to close them
+              </li>
+              <li className="flex items-start">
+                <span className="text-indigo-600 mr-2">•</span>
+                Tickets have timers - resolve them before they expire!
+              </li>
+              <li className="flex items-start">
+                <span className="text-indigo-600 mr-2">•</span>
+                Red border = urgent, yellow = medium priority, gray = low priority
+              </li>
+              <li className="flex items-start">
+                <span className="text-indigo-600 mr-2">•</span>
+                <strong>SPINOFFS:</strong> Some tickets spawn related tickets if not resolved quickly!
+              </li>
+              <li className="flex items-start">
+                <span className="text-indigo-600 mr-2">•</span>
+                <strong>KB DOCS:</strong> Unlimited! Randomly uses 1-5 docs. Higher chance to auto-close with more docs, or adds +10s to timer
+              </li>
+              <li className="flex items-start">
+                <span className="text-indigo-600 mr-2">•</span>
+                <strong>LAB TICKETS (🔬):</strong> Set up nodes, connect cables, test traffic before resolving
+              </li>
+              <li className="flex items-start">
+                <span className="text-yellow-600 mr-2">⚠️</span>
+                <strong className="text-yellow-800">SE SALES (💰):</strong> Require 5-20 tedious tasks! Use "Extra Work" options to reduce tasks. Neglected tickets escalate 3 times then become SE. Escalated SE tickets have even MORE tasks!
+              </li>
+              <li className="flex items-start">
+                <span className="text-orange-600 mr-2">🔥</span>
+                <strong>ESCALATIONS:</strong> Tickets escalate at 30%, 20%, 10% time if neglected. Level 3 escalation = converts to SE Sales with 10-20 tasks!
+              </li>
+              <li className="flex items-start">
+                <span className="text-indigo-600 mr-2">•</span>
+                Build combos by resolving tickets quickly for bonus points
+              </li>
+              <li className="flex items-start">
+                <span className="text-indigo-600 mr-2">•</span>
+                Use power-ups strategically when overwhelmed
+              </li>
+              <li className="flex items-start">
+                <span className="text-red-600 mr-2">•</span>
+                Game over if you have 8 tickets and one expires!
+              </li>
+            </ul>
+          </div>
+
+          <button
+            onClick={startGame}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105"
+          >
+            Start Game
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameOver) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md text-center">
+          <h1 className="text-4xl font-bold text-red-600 mb-4">Game Over!</h1>
+          <p className="text-xl text-gray-700 mb-2">Tickets overwhelmed you!</p>
+          <p className="text-3xl font-bold text-indigo-600 mb-2">Final Score: {score}</p>
+          <p className="text-lg text-gray-600 mb-6">Level Reached: {level}</p>
+          <button
+            onClick={startGame}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-lg font-bold py-3 px-6 rounded-lg shadow-lg transform transition hover:scale-105"
+          >
+            Play Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-4 ${screenShake ? 'screen-shake' : ''}`}>
+      {/* Notification Toast Container - LEFT SIDE */}
+      <div className="fixed top-4 left-4 z-50 space-y-2">
+        {notifications.map(notification => (
+          <div
+            key={notification.id}
+            className={`bg-white border-l-4 ${
+              notification.type === 'success' ? 'border-green-500' : 
+              notification.type === 'warning' ? 'border-yellow-500' : 'border-red-500'
+            } rounded-lg shadow-lg p-4 min-w-[300px] max-w-[400px] animate-slide-in`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <h3 className="font-bold text-gray-800">{notification.title}</h3>
+              <button
+                onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            {notification.type === 'success' ? (
+              <>
+                <div className="text-2xl font-bold text-green-600 mb-2">
+                  +{notification.points} points
+                </div>
+                
+                {/* Points Breakdown */}
+                <div className="text-xs text-gray-600 space-y-1">
+                  {notification.breakdown.base && (
+                    <div>Base: +{notification.breakdown.base}</div>
+                  )}
+                  {notification.breakdown.timeBonus && (
+                    <div>⏱️ Time Bonus: +{notification.breakdown.timeBonus}</div>
+                  )}
+                  {notification.breakdown.comboBonus && (
+                    <div>🔥 Combo Bonus: +{notification.breakdown.comboBonus}</div>
+                  )}
+                  {notification.breakdown.labBonus && (
+                    <div>🔬 Lab Bonus: +{notification.breakdown.labBonus}</div>
+                  )}
+                  {notification.breakdown.seBonus && (
+                    <div>💰 SE Bonus: +{notification.breakdown.seBonus}</div>
+                  )}
+                  {notification.breakdown.tediousBonus && (
+                    <div>💼 Tedious Bonus: +{notification.breakdown.tediousBonus}</div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-red-600">
+                {notification.message}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="max-w-7xl mx-auto flex gap-4">
+        {/* Main Content Area */}
+        <div className="flex-1">
+          {/* Header Stats */}
+          <div className="bg-white rounded-lg shadow-lg p-4 mb-4 flex justify-between items-center">
+            <div className="flex gap-6">
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Score</p>
+                <p className="text-2xl font-bold text-indigo-600">{score}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Level</p>
+                <p className="text-2xl font-bold text-purple-600">{level}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Combo</p>
+                <p className="text-2xl font-bold text-orange-600">{combo}x</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Tickets</p>
+                <p className="text-2xl font-bold text-red-600">{tickets.length}/{maxTickets}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">KB Docs Used</p>
+                <p className="text-2xl font-bold text-teal-600">📚 {kbsUsed}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">Escalations</p>
+                <p className="text-2xl font-bold text-orange-600">🔥 {escalatedTickets}</p>
+              </div>
+            </div>
+
+            {/* Power-ups */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => usePowerup('coffee')}
+                disabled={powerups.coffee === 0 || coffeeBreakActive}
+                className="bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 text-white p-2 rounded-lg flex items-center gap-1 transition"
+                title="Coffee Break - Pause tickets for 5s"
+              >
+                <Coffee size={20} />
+                <span className="text-sm font-bold">{powerups.coffee}</span>
+              </button>
+              <button
+                onClick={() => usePowerup('autoResolve')}
+                disabled={powerups.autoResolve === 0}
+                className="bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white p-2 rounded-lg flex items-center gap-1 transition"
+                title="Auto-resolve oldest ticket"
+              >
+                <Zap size={20} />
+                <span className="text-sm font-bold">{powerups.autoResolve}</span>
+              </button>
+              <button
+                onClick={() => usePowerup('slowTime')}
+                disabled={powerups.slowTime === 0 || slowTimeActive}
+                className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white p-2 rounded-lg flex items-center gap-1 transition"
+                title="Slow Time - Half timer speed for 10s"
+              >
+                <Clock size={20} />
+                <span className="text-sm font-bold">{powerups.slowTime}</span>
+              </button>
+            </div>
+          </div>
+
+          {coffeeBreakActive && (
+            <div className="bg-amber-100 border-2 border-amber-500 rounded-lg p-3 mb-4 text-center">
+              <span className="text-lg font-semibold text-amber-800">☕ Coffee Break Active! No new tickets...</span>
+            </div>
+          )}
+
+          {slowTimeActive && (
+            <div className="bg-blue-100 border-2 border-blue-500 rounded-lg p-3 mb-4 text-center">
+              <span className="text-lg font-semibold text-blue-800">⏰ Time Slowed!</span>
+            </div>
+          )}
+
+          {/* Tickets Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tickets.map(ticket => {
+              const progress = (ticket.timeLeft / ticket.maxTime) * 100;
+              return (
+                <div
+                  key={ticket.id}
+                  onClick={() => {
+                    // Update last activity time
+                    setTickets(prev => prev.map(t => 
+                      t.id === ticket.id ? { ...t, lastActivity: Date.now() } : t
+                    ));
+                    setSelectedTicket(ticket);
+                  }}
+                  className={`${ticket.type.color} ${getUrgencyColor(ticket.urgency)} rounded-lg p-4 cursor-pointer transform transition hover:scale-105 ${
+                    selectedTicket?.id === ticket.id ? 'ring-4 ring-indigo-500 scale-105' : ''
+                  } relative`}
+                >
+                  {ticket.isSpinoff && !ticket.isFollowUp && (
+                    <div className="absolute top-2 right-2 bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-1 rounded">
+                      SPINOFF
+                    </div>
+                  )}
+                  {ticket.isFollowUp && (
+                    <div className="absolute top-2 right-2 bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded animate-pulse">
+                      🔄 FOLLOW-UP
+                    </div>
+                  )}
+                  {ticket.escalationLevel > 0 && ticket.escalationLevel < 3 && (
+                    <div className={`absolute top-2 left-2 text-white text-xs font-bold px-2 py-1 rounded animate-pulse ${
+                      ticket.escalationLevel === 1 ? 'bg-orange-500' : 'bg-red-600'
+                    }`}>
+                      🔥 ESC {ticket.escalationLevel}
+                    </div>
+                  )}
+                  {ticket.type.id === 'se_sales' && ticket.isTedious && (
+                    <div className="absolute top-2 right-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded shadow-md animate-pulse">
+                      ⭐ VIP - TEDIOUS ({ticket.interactions?.totalSteps || 0} tasks)
+                    </div>
+                  )}
+                  {ticket.type.id === 'se_sales' && !ticket.isTedious && (
+                    <div className="absolute top-2 right-2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-xs font-bold px-3 py-1 rounded shadow-md">
+                      ⭐ VIP PRIORITY
+                    </div>
+                  )}
+                  {ticket.type.requiresLab && ticket.labType && (
+                    <div className="absolute top-2 right-2 bg-cyan-600 text-white text-xs font-bold px-2 py-1 rounded uppercase">
+                      {ticket.labType}
+                    </div>
+                  )}
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{ticket.type.icon}</span>
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${
+                        ticket.priority === 'P1' ? 'bg-red-600 text-white' :
+                        ticket.priority === 'P2' ? 'bg-orange-500 text-white' :
+                        'bg-blue-500 text-white'
+                      }`}>
+                        {ticket.priority}
+                      </span>
+                    </div>
+                    <span className="text-xs font-semibold uppercase">{ticket.urgency}</span>
+                  </div>
+                  <h3 className="font-bold mb-1">{ticket.type.label}</h3>
+                  <p className="text-sm mb-2 italic">"{ticket.message}"</p>
+                  {ticket.type.requiresLab && (
+                    <div className="text-xs font-semibold mb-1">
+                      Lab: {ticket.labComplete ? '✅ Complete' : '⚙️ In Progress'}
+                    </div>
+                  )}
+                  {ticket.type.requiresInteractions && ticket.interactions && (
+                    <div className="text-xs font-semibold mb-1 text-yellow-800">
+                      💼 Tasks: {ticket.interactions.currentStep}/{ticket.interactions.totalSteps} complete
+                    </div>
+                  )}
+                  <div className="w-full bg-gray-300 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        progress > 50 ? 'bg-green-500' : progress > 25 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-center mt-1 font-semibold">
+                    SLA: {convertToSlaTime(ticket.timeLeft)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Fixed Response Panel Sidebar */}
+        <div className="w-80 flex-shrink-0">
+          <div className="sticky top-4">
+            {selectedTicket ? (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">Response Panel</h2>
+                  <button
+                    onClick={() => setSelectedTicket(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                <div className={`${selectedTicket.type.color} rounded-lg p-4 mb-4`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">{selectedTicket.type.icon}</span>
+                    <h3 className="font-bold">{selectedTicket.type.label}</h3>
+                    {selectedTicket.isSpinoff && (
+                      <span className="bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded">
+                        SPINOFF
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm italic mb-2">"{selectedTicket.message}"</p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Clock size={14} />
+                    <span className="font-semibold">SLA: {convertToSlaTime(selectedTicket.timeLeft)} remaining</span>
+                  </div>
+                </div>
+
+                {/* KB Doc Attachment */}
+                <button
+                  onClick={() => attachKbDoc(selectedTicket)}
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg mb-4 flex items-center justify-center gap-2"
+                >
+                  📚 Attach KB Docs
+                  <span className="text-xs">(Uses 1-5 docs)</span>
+                </button>
+
+                {/* SE Sales Interactions Interface */}
+                {selectedTicket.type.requiresInteractions && selectedTicket.interactions && (
+                  <div className="bg-yellow-50 rounded-lg p-4 mb-4 border-2 border-yellow-400">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-bold text-sm text-yellow-900">💼 Tedious SE Tasks Required</h3>
+                      <span className="text-xs font-bold text-yellow-800">
+                        {selectedTicket.interactions.currentStep}/{selectedTicket.interactions.totalSteps}
+                      </span>
+                    </div>
+                    
+                    {selectedTicket.interactions.escalationLevel > 0 && (
+                      <div className="mb-2 bg-red-100 border border-red-400 rounded px-2 py-1">
+                        <span className="text-xs font-bold text-red-800">
+                          🔥 ESCALATION LEVEL {selectedTicket.interactions.escalationLevel}/3
+                        </span>
+                      </div>
+                    )}
+                    
+                    <p className="text-xs text-yellow-800 mb-3 italic">
+                      Complete ALL tasks before resolving (simulating hours of tedious work)
+                    </p>
+
+                    {/* Extra Work Options */}
+                    {selectedTicket.interactions.canUseExtraWork && selectedTicket.interactions.totalSteps > 5 && (
+                      <div className="mb-3 bg-blue-50 border border-blue-300 rounded p-2">
+                        <p className="text-xs font-semibold text-blue-800 mb-2">⚡ Do Extra Work (reduces tasks)</p>
+                        <div className="grid grid-cols-2 gap-1">
+                          {EXTRA_WORK_OPTIONS.map(work => (
+                            <button
+                              key={work.id}
+                              onClick={() => useExtraWork(selectedTicket.id, work.id)}
+                              className="bg-blue-500 hover:bg-blue-600 text-white text-xs py-1 px-2 rounded"
+                            >
+                              {work.label} (-{work.reduces})
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-blue-700 mt-1 italic">One-time use per ticket</p>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {selectedTicket.interactions.tasks.map((task, idx) => (
+                        <button
+                          key={task.index}
+                          onClick={() => completeSeTask(selectedTicket.id, idx)}
+                          disabled={task.completed}
+                          className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+                            task.completed
+                              ? 'bg-green-500 text-white font-semibold cursor-default' 
+                              : 'bg-white text-gray-700 border-2 border-yellow-400 hover:bg-yellow-100 hover:border-yellow-500'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs">
+                              {task.completed ? '✅' : task.icon} {task.label}
+                            </span>
+                            {!task.completed && <span className="text-xs text-yellow-600">Click</span>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {selectedTicket.interactions.currentStep === selectedTicket.interactions.totalSteps && (
+                      <div className="mt-3 bg-green-100 text-green-800 p-2 rounded text-xs font-semibold text-center">
+                        ✅ All tasks complete! You can now resolve this ticket.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Lab Setup Interface */}
+                {selectedTicket.type.requiresLab && selectedTicket.labSetup && (
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <h3 className="font-bold mb-2 text-sm">🔬 Lab Setup Required</h3>
+                    <p className="text-xs text-gray-600 mb-3">
+                      {selectedTicket.labSetup.type === 'basic' && 'Select features to enable'}
+                      {selectedTicket.labSetup.type === 'medium' && 'Connect FortiGate to products'}
+                      {selectedTicket.labSetup.type === 'advanced' && 'Set up network topology'}
+                    </p>
+                    
+                    {/* Basic Lab: Feature Selection */}
+                    {selectedTicket.labSetup.type === 'basic' && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold mb-2">
+                          Enable Features ({Object.values(selectedTicket.labSetup.features).filter(Boolean).length}/{selectedTicket.labSetup.requiredCount} required):
+                        </p>
+                        {Object.keys(selectedTicket.labSetup.features).map(feature => (
+                          <button
+                            key={feature}
+                            onClick={() => toggleLabComponent(selectedTicket.id, 'feature', feature)}
+                            className={`w-full text-left px-3 py-2 rounded text-sm font-medium transition ${
+                              selectedTicket.labSetup.features[feature]
+                                ? 'bg-green-500 text-white shadow-md' 
+                                : 'bg-white text-gray-700 border border-gray-300 hover:border-green-400'
+                            }`}
+                          >
+                            {selectedTicket.labSetup.features[feature] ? '✅' : '⬜'} {feature}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Medium Lab: FortiGate Connections */}
+                    {selectedTicket.labSetup.type === 'medium' && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold mb-2">
+                          Connect Products ({selectedTicket.labSetup.connections.filter(c => c.enabled).length}/{selectedTicket.labSetup.requiredCount} required):
+                        </p>
+                        {selectedTicket.labSetup.connections.map((conn, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => toggleLabComponent(selectedTicket.id, 'connection', idx)}
+                            className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+                              conn.enabled
+                                ? 'bg-green-500 text-white shadow-md' 
+                                : 'bg-white text-gray-700 border border-gray-300 hover:border-green-400'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">
+                                {conn.enabled ? '✅' : '⬜'} {conn.from} → {conn.to}
+                              </span>
+                              {conn.enabled && <span className="text-xs">Connected</span>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Advanced Lab: Network Topology */}
+                    {selectedTicket.labSetup.type === 'advanced' && (
+                      <div>
+                        <div className="mb-3">
+                          <p className="text-xs font-semibold mb-2">Install Nodes:</p>
+                          <div className="space-y-1">
+                            {Object.keys(selectedTicket.labSetup.nodes).map(node => (
+                              <button
+                                key={node}
+                                onClick={() => toggleLabComponent(selectedTicket.id, 'node', node)}
+                                className={`w-full text-left px-2 py-1.5 rounded text-xs font-medium transition ${
+                                  selectedTicket.labSetup.nodes[node]
+                                    ? 'bg-green-500 text-white' 
+                                    : 'bg-white text-gray-600 border border-gray-300'
+                                }`}
+                              >
+                                {selectedTicket.labSetup.nodes[node] ? '✅' : '⬜'} {node.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
+                          <p className="text-xs font-semibold mb-2">Connect Cables:</p>
+                          <div className="space-y-1">
+                            {Object.keys(selectedTicket.labSetup.cabling).map(cable => (
+                              <button
+                                key={cable}
+                                onClick={() => toggleLabComponent(selectedTicket.id, 'cable', cable)}
+                                className={`w-full text-left px-2 py-1.5 rounded text-xs font-medium transition ${
+                                  selectedTicket.labSetup.cabling[cable]
+                                    ? 'bg-green-500 text-white' 
+                                    : 'bg-white text-gray-600 border border-gray-300'
+                                }`}
+                              >
+                                {selectedTicket.labSetup.cabling[cable] ? '✅' : '⬜'} {cable.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => toggleLabComponent(selectedTicket.id, 'traffic', null)}
+                          disabled={!Object.values(selectedTicket.labSetup.nodes).every(v => v) || 
+                                    !Object.values(selectedTicket.labSetup.cabling).every(v => v)}
+                          className={`w-full px-3 py-2 rounded text-sm font-semibold transition ${
+                            selectedTicket.labSetup.traffic
+                              ? 'bg-green-600 text-white' 
+                              : 'bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed'
+                          }`}
+                        >
+                          {selectedTicket.labSetup.traffic ? '✅ Traffic Verified' : '▶️ Test Traffic Flow'}
+                        </button>
+                      </div>
+                    )}
+
+                    {selectedTicket.labComplete && (
+                      <div className="mt-3 bg-green-100 text-green-800 p-2 rounded text-xs font-semibold text-center">
+                        ✅ Lab Complete! You can now resolve this ticket.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-600 mb-3 font-semibold">
+                  {selectedTicket.type.requiresLab && !selectedTicket.labComplete 
+                    ? 'Complete lab setup first:' 
+                    : selectedTicket.type.requiresInteractions && selectedTicket.interactions && 
+                      selectedTicket.interactions.currentStep < selectedTicket.interactions.totalSteps
+                    ? 'Complete all SE tasks first:'
+                    : 'Select a response:'}
+                </p>
+                <div className="flex flex-col gap-3">
+                  {selectedTicket.type.responses.map((response, idx) => {
+                    const isDisabled = (selectedTicket.type.requiresLab && !selectedTicket.labComplete) ||
+                                      (selectedTicket.type.requiresInteractions && selectedTicket.interactions && 
+                                       selectedTicket.interactions.currentStep < selectedTicket.interactions.totalSteps);
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => resolveTicket(selectedTicket, idx)}
+                        disabled={isDisabled}
+                        className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transform transition hover:scale-105 shadow-md text-left"
+                      >
+                        {response}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+                <div className="text-gray-400 mb-3">
+                  <AlertCircle size={48} className="mx-auto" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-800 mb-2">No Ticket Selected</h2>
+                <p className="text-sm text-gray-600">Click on a ticket to select it and choose a response</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Management Meeting Modal */}
+      {showManagementModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-2xl w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="text-6xl mb-4">👔</div>
+              <h2 className="text-3xl font-bold text-red-600 mb-2">MANAGEMENT MEETING</h2>
+              <p className="text-gray-600">{expiredTickets} tickets expired - You need to explain yourself!</p>
+            </div>
+            
+            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
+              <h3 className="font-bold text-lg mb-4">Manager Says:</h3>
+              {managementTasks.map((task, idx) => (
+                <div key={idx} className="mb-4">
+                  <p className="font-semibold text-red-800">{task}</p>
+                  <textarea
+                    className="w-full mt-2 p-3 border-2 border-gray-300 rounded-lg"
+                    placeholder="Type your response here..."
+                    rows="3"
+                  />
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setShowManagementModal(false);
+                  setManagementChasing(false);
+                  setExpiredTickets(0); // Reset counter after meeting
+                }}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg"
+              >
+                Submit Response
+              </button>
+              <button
+                onClick={() => setShowManagementModal(false)}
+                className="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg"
+              >
+                Close (Consequences Later...)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Escalation Engineer Questions Modal - BOTTOM RIGHT */}
+      {showEeModal && eeQuestions.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 w-[500px] max-h-[80vh] overflow-hidden">
+          <div className="bg-white rounded-lg shadow-2xl border-4 border-blue-500 overflow-hidden">
+            <div className="bg-blue-600 text-white p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-4xl">🎓</span>
+                  <div>
+                    <h2 className="text-xl font-bold">ESCALATION ENGINEER</h2>
+                    <p className="text-sm opacity-90">{seExpiredCount} SE tickets → EE</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowEeModal(false)}
+                  className="text-white hover:bg-blue-700 p-2 rounded"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-4 max-h-[60vh] overflow-y-auto space-y-4">
+              {eeQuestions.map((question, qIdx) => (
+                <div key={qIdx} className="bg-blue-50 border-2 border-blue-300 rounded-lg p-3">
+                  <p className="font-bold text-sm mb-2">{question.question}</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {question.answers.map((answer, aIdx) => (
+                      <button
+                        key={aIdx}
+                        onClick={() => {
+                          // Mark question as answered
+                          setEeQuestions(prev => prev.map((q, i) => 
+                            i === qIdx ? { ...q, answered: true, selectedAnswer: aIdx } : q
+                          ));
+                        }}
+                        disabled={question.answered}
+                        className={`p-2 rounded text-xs text-left transition ${
+                          question.answered
+                            ? aIdx === question.correct
+                              ? 'bg-green-500 text-white font-bold'
+                              : aIdx === question.selectedAnswer
+                              ? 'bg-red-500 text-white'
+                              : 'bg-gray-200 text-gray-500'
+                            : 'bg-white border-2 border-blue-400 hover:bg-blue-100'
+                        }`}
+                      >
+                        {answer}
+                      </button>
+                    ))}
+                  </div>
+                  {question.answered && (
+                    <p className={`mt-3 font-semibold ${
+                      question.selectedAnswer === question.correct ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {question.selectedAnswer === question.correct 
+                        ? '✅ Correct! Good job.' 
+                        : `❌ Wrong. Correct answer: ${question.answers[question.correct]}`
+                      }
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            <div className="p-3 bg-gray-50 border-t flex gap-2">
+              <button
+                onClick={() => {
+                  const allAnswered = eeQuestions.every(q => q.answered);
+                  if (allAnswered) {
+                    setShowEeModal(false);
+                    setEeQuestions([]);
+                    setSeExpiredCount(0);
+                  } else {
+                    alert('Please answer all questions before closing');
+                  }
+                }}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm"
+              >
+                {eeQuestions.every(q => q.answered) ? 'Submit' : 'Answer All'}
+              </button>
+              <button
+                onClick={() => setShowEeModal(false)}
+                className="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded text-sm"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manager Attack Modal */}
+      {managerAttackActive && currentManagerAttack && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-slide-in">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 border-4 border-red-500">
+            <div className="text-center mb-6">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h2 className="text-2xl font-bold text-red-600 mb-2">MANAGER INTERRUPT!</h2>
+              <p className="text-sm text-gray-600">Your energy boost was broken!</p>
+            </div>
+            
+            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
+              <p className="font-semibold text-red-800">{currentManagerAttack}</p>
+            </div>
+            
+            <button
+              onClick={dismissManagerAttack}
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg"
+            >
+              OK, Got It
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+
+        // Render the game
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(TicketGame));
+    </script>
+</body>
+</html>
